@@ -1,0 +1,362 @@
+version: "2.4"
+
+services:
+  cadvisor:
+    image: google/cadvisor
+    container_name: cadvisor
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 128m
+    labels:
+      container_group: monitoring
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    expose:
+      - 8080
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.10
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 512m
+    labels:
+      container_group: monitoring
+    volumes:
+      - /docker/prometheus/etc:/etc/prometheus
+      - /docker/prometheus/data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention=168h'
+    expose:
+      - 9090
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.11
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 128m
+    labels:
+      container_group: monitoring
+    volumes:
+      - /docker/grafana:/var/lib/grafana
+    expose:
+      - 3000
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.12
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: "host"
+    cpus: 0.5
+    mem_limit: 64m
+    labels:
+      container_group: monitoring
+    expose:
+      - 9100
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.13
+
+  nginx:
+    image: nginx
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - /docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    expose:
+      - 80
+      - 443
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.5
+
+  verdaccio:
+    image: verdaccio/verdaccio
+    container_name: verdaccio
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
+    labels:
+      container_group: package-managers
+    volumes:
+      # - /docker/verdaccio/conf:/verdaccio/conf
+      - /docker/verdaccio/storage:/verdaccio/storage
+      - /docker/verdaccio/plugins:/verdaccio/plugins
+    expose:
+      - 4873
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.20
+
+  artifactory:
+    image: docker.bintray.io/jfrog/artifactory-oss
+    container_name: artifactory
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 2g
+    labels:
+      container_group: package-managers
+    volumes:
+      - /docker/artifactory:/var/opt/jfrog/artifactory
+    expose:
+      - 8081
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.21
+
+  docker-registry:
+    image: registry
+    container_name: docker-registry
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
+    labels:
+      container_group: package-managers
+    volumes:
+      - /docker/registry:/var/lib/registry
+    expose:
+      - 5000
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.22
+
+  openproject:
+    image: openproject/community
+    container_name: openproject
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 1512m
+    labels:
+      container_group: management
+    volumes:
+      - /docker/openproject/pgdata:/var/lib/postgresql/9.6/main
+      - /docker/openproject/logs:/var/log/supervisor
+      - /docker/openproject/static:/var/db/openproject
+    expose:
+      - 8080
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.30
+
+  jenkins:
+    image: 172.18.0.22:5000/jenkins-docker
+    container_name: jenkins
+    restart: unless-stopped
+    user: root
+    cpus: 0.5
+    mem_limit: 2g
+    labels:
+      container_group: management
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /docker/jenkins:/var/jenkins_home
+    expose:
+      - 8080
+      - 50000
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.31
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.5.4
+    container_name: kibana
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 1g
+    labels:
+      container_group: management
+    volumes:
+      - /docker/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml
+    expose:
+      - 5601
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.32
+
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
+    restart: unless-stopped
+    cpus: 0.1
+    mem_limit: 256m
+    labels:
+      container_group: monitoring
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=9411
+    expose: # see https://www.jaegertracing.io/docs/1.6/getting-started/ for port config
+      - 5778
+      - 16686 # ui
+      - 14268
+      - 9411
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.33
+
+  sonarqube:
+    image: sonarqube
+    container_name: sonarqube
+    restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 2g
+    labels:
+      container_group: management
+    volumes:
+      - /docker/sonarqube/conf:/opt/sonarqube/conf
+      - /docker/sonarqube/data:/opt/sonarqube/data
+      - /docker/sonarqube/logs:/opt/sonarqube/logs
+      - /docker/sonarqube/extensions:/opt/sonarqube/extensions
+    expose:
+      - 9000
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.34
+
+  couchbase:
+    image: couchbase/server:community
+    container_name: couchbase
+    restart: unless-stopped
+    cpus: 1
+    mem_limit: 3g
+    labels:
+      container_group: database
+    volumes:
+      - /docker/couchbase:/opt/couchbase/var
+    expose:
+      - 8091
+      - 8092
+      - 8093
+      - 8094
+      - 11210
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.40
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.5.4
+    container_name: elasticsearch
+    restart: unless-stopped
+    cpus: 1
+    mem_limit: 3g
+    labels:
+      container_group: database
+    environment:
+      - discovery.type=single-node
+    volumes:
+      - /docker/elasticsearch/data:/usr/share/elasticsearch/data
+      # - /docker/elasticsearch/logs:/usr/share/elasticsearch/logs
+      - /docker/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    expose:
+      - 9200
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    cap_add:
+      - IPC_LOCK
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.41
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    restart: unless-stopped
+    cpus: 0.2
+    mem_limit: 256m
+    labels:
+      container_group: database
+    volumes:
+      - /docker/minio/data:/data
+      - /docker/minio/config:/root/.minio
+    command: server /data
+    expose:
+      - 9000
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.43
+
+  nats:
+    image: nats
+    container_name: nats
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
+    labels:
+      container_group: transport
+    expose:
+      - 4222
+      - 6222
+      - 8222
+    ports:
+      - 4222:4222
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.44
+
+  prometheus-nats-exporter:
+    image: appcelerator/prometheus-nats-exporter
+    container_name: prometheus-nats-exporter
+    restart: unless-stopped
+    command: -varz -connz -routez -subz "http://nats:8222"
+    cpus: 0.1
+    mem_limit: 64m
+    labels:
+      container_group: monitoring
+    expose:
+      - 7777
+    networks:
+      main-network:
+        ipv4_address: 172.18.0.14
+
+  # zookeeper:
+  #   image: wurstmeister/zookeeper
+  #   container_name: zookeeper
+  #   restart: unless-stopped
+  #   expose:
+  #     - 2181
+  #   networks:
+  #     main-network:
+  #       ipv4_address: 172.18.0.50
+  # kafka:
+  #   build: .
+  #   container_name: kafka
+  #   restart: unless-stopped
+  #   environment:
+  #     KAFKA_ADVERTISED_HOST_NAME: 192.168.0.180
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   expose:
+  #     - 9092
+  #   ports:
+  #     - 9092:9092 # as this port is binary, can't do anything with nginx, so forward it
+  #   networks:
+  #     main-network:
+  #       ipv4_address: 172.18.0.51
+networks:
+  main-network:
+    external: true
